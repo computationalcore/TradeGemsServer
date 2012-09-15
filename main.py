@@ -45,7 +45,7 @@ class Response(webapp2.RequestHandler):
                               "FROM Player "
                               "WHERE ANCESTOR IS :1 "
                               "ORDER BY score DESC LIMIT 10",
-                              user_key(parent_key))
+                              parent_key)
         else:
             players = db.GqlQuery("SELECT * "
             "FROM Player "
