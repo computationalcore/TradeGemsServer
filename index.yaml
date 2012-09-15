@@ -1,0 +1,6 @@
+indexes:
+- kind: Player
+  ancestor: yes
+  properties:
+  - name: score
+    direction: desc
