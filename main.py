@@ -2,31 +2,9 @@ import webapp2
 from google.appengine.ext import db
 import hashlib
 
+from model import User, Player, user_key
+
 import utils
-
-def user_key(user_email=None):
-    """Constructs a Datastore key for a User entity with player_email."""
-
-    return db.Key.from_path('User', user_email)
-
-class Player(db.Model):
-    """Models an individual Player entry with an author"""
-    nickname = db.StringProperty()
-    email = db.StringProperty()
-    score = db.IntegerProperty()
-    turns = db.IntegerProperty()
-    lat = db.FloatProperty()
-    lon = db.FloatProperty()
-    city = db.StringProperty()
-    state = db.StringProperty()
-    country = db.StringProperty()
-    provider = db.StringProperty()
-    accuracy = db.FloatProperty()
-    date = db.DateTimeProperty(auto_now_add=True)
-
-    def to_dict(self):
-        return dict((p, unicode(getattr(self, p))) for p in self.properties()
-            if getattr(self, p) is not None)
 
 
 class MainPage(webapp2.RequestHandler):
@@ -37,19 +15,53 @@ class MainPage(webapp2.RequestHandler):
 
 class Response(webapp2.RequestHandler):
     def get(self):
+        
 
+        query_string = "SELECT * FROM Player "
+        limit = 10
         parent_key = self.request.get('p')
 
+        try:
+            type = unicode(self.request.get('t'))
+            if type == 'geo':
+            #Location data
+                limit = 20
+                query_string = query_string + ", Player.lat, Player.lon, Player.accuracy"
+                try:
+                    country = unicode(self.request.get('country'))
+                    query_string = query_string + ", Player.country = %s" % country
+                    try:
+                        state = unicode(self.request.get('state'))
+                        query_string = query_string + ", Player.state = %s" % state
+                        try:
+                            city = unicode(self.request.get('city'))
+                            query_string = query_string + ", Player.city = %s" % city
+                        except:
+                            pass
+                    except:
+                        pass
+                except:
+                    pass
+        except:
+            pass
+
+        try:
+            lim = int(self.request.get('l'))
+            if lim>=10 and lim<=100:
+                limit = lim
+        except:
+            pass
+
+
         if parent_key:
-            players = db.GqlQuery("SELECT * "
-                              "FROM Player "
-                              "WHERE ANCESTOR IS :1 "
-                              "ORDER BY score DESC LIMIT 10",
-                              parent_key)
+            players = db.GqlQuery(query_string +
+                                  "WHERE ANCESTOR IS :1 "
+                                  "ORDER BY score DESC LIMIT %s" % limit,
+                                  parent_key)
+
         else:
-            players = db.GqlQuery("SELECT * "
-            "FROM Player "
-            "ORDER BY score DESC LIMIT 10")
+            players = db.GqlQuery(query_string +
+                                  "ORDER BY score DESC LIMIT %s" % limit)
 
         self.response.headers['Content-Type'] = 'application/json'
         self.response.write(utils.encode(players))
@@ -66,8 +78,8 @@ class Publisher(webapp2.RequestHandler):
         It returns a code error or the id of the user
         return a code error.
         Code Error
-        -1 - Invalid Data (It have some wrong type data)
-        0 - Missing field (Pass on the validation, but something is missing)
+        -1 - Invalid Data (It have some wrong type data) or Missing field
+        (Pass on the validation, but something is missing)
 
         """
 
@@ -96,17 +108,27 @@ class Publisher(webapp2.RequestHandler):
             self.response.headers['Content-Type'] = 'text/plain'
             self.response.write('0')
             return None
-        player_key = email+city+state+country
+        player_key = email
         parent_key = user_key(email)
-        player = Player.get_by_key_name(player_key, parent=parent_key)
+        # Query interface constructs a query using instance methods
+        q = Player.all()
+        q.ancestor(parent_key)
+        q.filter("email =", email)
+        q.filter("city =", city)
+        q.filter("state =", state)
+        q.filter("country", country)
+        # Query is not executed until results are accessed
+        #This only get the first the result (if the use of database is limited to this
+        #app, the first one is the only one possible)
+        try:
+            player = (q.run(limit=1)).next()
         #The player entry do not exists (limited by location and email)
-        if not player:
-            player =  Player(parent=parent_key,key=player_key)
+        except:
+            player =  Player(parent=parent_key)
             player.email = email
             player.city = city
             player.state = state
             player.country = country
-        player.nickname = nickname
         player.score = score
         player.turns = turn
         player.lat = lat
@@ -114,6 +136,9 @@ class Publisher(webapp2.RequestHandler):
         player.provider = provider
         player.accuracy = accuracy
         player.put()
+        user = User(key=parent_key)
+        user.nickname = nickname
+        user.put()
         self.response.write(parent_key)
 
 

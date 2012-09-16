@@ -15,6 +15,8 @@ import time
 from google.appengine.api import users
 from google.appengine.ext import db
 
+from model import User, user_key, Player
+
 
 class GqlEncoder(json.JSONEncoder):
 
@@ -39,6 +41,11 @@ class GqlEncoder(json.JSONEncoder):
         elif isinstance(obj, db.Model):
             properties = obj.properties().items()
             output = {}
+
+            if isinstance(obj, Player):
+                #only valid for Player obj
+                user = obj.parent()
+                output['nickname'] = user.nickname
             for field, value in properties:
                 #Convert Datastore time and convert to timestamp
                 obj_field = getattr(obj, field)
