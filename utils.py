@@ -1,4 +1,4 @@
-"""Utility classes and methods for use with json and appengine.
+"""Utility classes and methods for use with json and appengine, and some filters for string input.
 
 Provides both a specialized json encoder, GqlEncoder, designed to simplify
 encoding directly from GQL results to JSON. A helper function, encode, is also
@@ -72,3 +72,10 @@ def encode(input):
         type.
     """
     return GqlEncoder().encode(input)
+
+def filter_input(string):
+    """Filter string input, remove whitespace, lowercase the word,
+    and transforme in unicode.
+    """
+    return ((unicode(string)).lower()).strip()
+

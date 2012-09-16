@@ -4,7 +4,7 @@ import hashlib
 
 from model import User, Player, user_key
 
-import utils
+from utils import encode, filter_input
 
 
 class MainPage(webapp2.RequestHandler):
@@ -15,31 +15,35 @@ class MainPage(webapp2.RequestHandler):
 
 class Response(webapp2.RequestHandler):
     def get(self):
-        
+
 
         query_string = "SELECT * FROM Player "
         limit = 10
         parent_key = self.request.get('p')
+        player_key = self.request.get('i')
+        country = None
 
         try:
             type = unicode(self.request.get('t'))
             if type == 'geo':
             #Location data
                 limit = 20
-                query_string = query_string + ", Player.lat, Player.lon, Player.accuracy"
                 try:
-                    country = unicode(self.request.get('country'))
-                    query_string = query_string + ", Player.country = %s" % country
-                    try:
-                        state = unicode(self.request.get('state'))
-                        query_string = query_string + ", Player.state = %s" % state
+                    country = filter_input(self.request.get('country'))
+                    if country:
+                        query_string = query_string + ("WHERE country = '%s' " % country)
                         try:
-                            city = unicode(self.request.get('city'))
-                            query_string = query_string + ", Player.city = %s" % city
+                            state =filter_input(self.request.get('state'))
+                            if state:
+                                query_string = query_string + "AND state = '%s' " % state
+                                try:
+                                    city = filter_input(self.request.get('city'))
+                                    if city:
+                                        query_string = query_string + "AND city = '%s' " % city
+                                except:
+                                    pass
                         except:
                             pass
-                    except:
-                        pass
                 except:
                     pass
         except:
@@ -52,19 +56,11 @@ class Response(webapp2.RequestHandler):
         except:
             pass
 
-
-        if parent_key:
-            players = db.GqlQuery(query_string +
-                                  "WHERE ANCESTOR IS :1 "
-                                  "ORDER BY score DESC LIMIT %s" % limit,
-                                  parent_key)
-
-        else:
-            players = db.GqlQuery(query_string +
-                                  "ORDER BY score DESC LIMIT %s" % limit)
+        players = db.GqlQuery(query_string +
+                              "ORDER BY score DESC LIMIT %s" % limit)
 
         self.response.headers['Content-Type'] = 'application/json'
-        self.response.write(utils.encode(players))
+        self.response.write(encode(players))
 
 
 class Publisher(webapp2.RequestHandler):
@@ -86,16 +82,16 @@ class Publisher(webapp2.RequestHandler):
         self.response.headers['Content-Type'] = 'text/plain'
 
         try:
-            nickname = unicode(self.request.get('nickname'))
-            email = self.request.get('email')
+            nickname = filter_input(self.request.get('nickname'))
+            email = filter_input(self.request.get('email'))
             score = int(self.request.get('score'))
             turn = int(self.request.get('turns'))
-            lat = float(self.request.get('lat'))
+            lat = float(self.request.get('lat'), )
             lon = float(self.request.get('lon'))
-            city = unicode(self.request.get('city'))
-            state = unicode(self.request.get('state'))
-            country = unicode(self.request.get('country'))
-            provider = unicode(self.request.get('provider'))
+            city = filter_input(self.request.get('city'))
+            state = filter_input(self.request.get('state'))
+            country = filter_input(self.request.get('country'))
+            provider = filter_input(self.request.get('provider'))
             accuracy = float(self.request.get('accuracy'))
         except:
             self.response.headers['Content-Type'] = 'text/plain'
@@ -108,7 +104,6 @@ class Publisher(webapp2.RequestHandler):
             self.response.headers['Content-Type'] = 'text/plain'
             self.response.write('0')
             return None
-        player_key = email
         parent_key = user_key(email)
         # Query interface constructs a query using instance methods
         q = Player.all()
@@ -139,7 +134,7 @@ class Publisher(webapp2.RequestHandler):
         user = User(key=parent_key)
         user.nickname = nickname
         user.put()
-        self.response.write(parent_key)
+        self.response.write(str(player.key()))
 
 
 app = webapp2.WSGIApplication([('/', MainPage), ('/publish', Publisher), ('/ranking', Response)], debug=True)

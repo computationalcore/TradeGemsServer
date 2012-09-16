@@ -5,8 +5,4 @@ indexes:
   - name: score
     direction: desc
   - name: nickname
-- kind: Player
-  properties:
-  - name: score
-    direction: desc
-  - name: nickname
+  - name: country
